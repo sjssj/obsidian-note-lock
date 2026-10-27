@@ -1,0 +1,10 @@
+{
+  "id": "obsidian-note-lock",
+  "name": "Note Lock",
+  "version": "1.0.0",
+  "minAppVersion": "1.0.0",
+  "description": "为 Obsidian 笔记加锁，需要密码才能查看内容。支持自动锁定和屏幕切换锁定。",
+  "author": "Yi",
+  "authorUrl": "https://github.com/sjssj",
+  "isDesktopOnly": false
+}

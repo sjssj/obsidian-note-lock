@@ -1,0 +1,159 @@
+/* 锁定遮罩层 */
+.note-lock-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(10px);
+}
+
+/* 锁定卡片 */
+.note-lock-card {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  padding: 40px;
+  width: 360px;
+  max-width: 90vw;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  animation: note-lock-fade-in 0.3s ease-out;
+}
+
+@keyframes note-lock-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 锁图标 */
+.note-lock-icon {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.note-lock-icon svg {
+  width: 64px;
+  height: 64px;
+  opacity: 0.9;
+}
+
+/* 标题 */
+.note-lock-title {
+  text-align: center;
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.note-lock-subtitle {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  margin-bottom: 28px;
+}
+
+/* 密码输入框 */
+.note-lock-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font-size: 16px;
+  outline: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.note-lock-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.note-lock-input:focus {
+  border-color: rgba(100, 180, 255, 0.6);
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 0 3px rgba(100, 180, 255, 0.15);
+}
+
+.note-lock-input.error {
+  border-color: rgba(255, 100, 100, 0.6);
+  background: rgba(255, 100, 100, 0.1);
+}
+
+/* 错误提示 */
+.note-lock-error {
+  color: #ff6b6b;
+  font-size: 12px;
+  margin-top: 8px;
+  text-align: center;
+  min-height: 18px;
+}
+
+/* 解锁按钮 */
+.note-lock-button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 16px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #4a90d9 0%, #357abd 100%);
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.note-lock-button:hover {
+  background: linear-gradient(135deg, #5aa0e9 0%, #458bcd 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(74, 144, 217, 0.4);
+}
+
+.note-lock-button:active {
+  transform: translateY(0);
+}
+
+/* 设置页面样式 */
+.note-lock-setting-status {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.note-lock-setting-status.enabled {
+  background: rgba(75, 181, 67, 0.15);
+  color: #4bb543;
+}
+
+.note-lock-setting-status.disabled {
+  background: rgba(150, 150, 150, 0.15);
+  color: #999;
+}
+
+/* 密码设置表单 */
+.note-lock-set-password {
+  margin-top: 12px;
+}
+
+.note-lock-set-password input {
+  width: 100%;
+  margin-bottom: 8px;
+}
