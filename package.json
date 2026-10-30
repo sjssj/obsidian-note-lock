@@ -1,20 +1,25 @@
 {
-  "name": "obsidian-note-lock",
+  "name": "note-lock",
   "version": "1.0.0",
-  "description": "Obsidian 笔记加锁插件",
+  "description": "Obsidian plugin that locks the vault behind a password screen with idle and window-switch auto lock.",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
     "version": "node version-bump.mjs && git add manifest.json versions.json"
   },
-  "keywords": ["obsidian", "plugin", "lock", "password", "security"],
+  "keywords": [
+    "obsidian",
+    "plugin",
+    "lock",
+    "password",
+    "privacy",
+    "security"
+  ],
   "author": "Yi",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "16.11.6",
-    "@typescript-eslint/eslint-plugin": "5.29.0",
-    "@typescript-eslint/parser": "5.29.0",
     "builtin-modules": "3.3.0",
     "esbuild": "0.17.3",
     "obsidian": "latest",

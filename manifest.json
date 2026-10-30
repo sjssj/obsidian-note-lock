@@ -1,9 +1,9 @@
 {
-  "id": "obsidian-note-lock",
+  "id": "note-lock",
   "name": "Note Lock",
   "version": "1.0.0",
   "minAppVersion": "1.0.0",
-  "description": "为 Obsidian 笔记加锁，需要密码才能查看内容。支持自动锁定和屏幕切换锁定。",
+  "description": "Lock your vault behind a password screen with auto-lock after idle time or when switching windows.",
   "author": "Yi",
   "authorUrl": "https://github.com/sjssj",
   "isDesktopOnly": false
