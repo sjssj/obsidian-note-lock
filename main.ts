@@ -186,10 +186,6 @@ class LockOverlay {
 			this.errorEl = null;
 		}
 	}
-
-	get isOpen(): boolean {
-		return this.overlayEl !== null;
-	}
 }
 
 // ==================== Plugin ====================
@@ -418,7 +414,6 @@ class NoteLockSettingTab extends PluginSettingTab {
 					.setLimits(0, 60, 1)
 					.setValue(this.plugin.settings.autoLockMinutes)
 					.setDynamicTooltip()
-					.setTooltip(`${this.plugin.settings.autoLockMinutes} minutes`)
 					.onChange(async (value) => {
 						this.plugin.settings.autoLockMinutes = value;
 						await this.plugin.saveSettings();
