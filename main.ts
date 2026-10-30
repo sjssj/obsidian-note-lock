@@ -1,97 +1,147 @@
-import { App, Plugin, PluginSettingTab, Setting, Modal, Notice, MarkdownView } from 'obsidian';
+import { Plugin, PluginSettingTab, Setting, Notice } from 'obsidian';
 
-// ==================== 类型定义 ====================
+// ==================== Types ====================
 
 interface NoteLockSettings {
 	passwordHash: string;
 	autoLockMinutes: number;
-	lockOnScreenSwitch: boolean;
+	lockOnWindowSwitch: boolean;
 	enabled: boolean;
 }
 
 const DEFAULT_SETTINGS: NoteLockSettings = {
 	passwordHash: '',
 	autoLockMinutes: 5,
-	lockOnScreenSwitch: true,
+	lockOnWindowSwitch: true,
 	enabled: false,
+};
+
+// ==================== Password hashing ====================
+
+/**
+ * Fallback non-cryptographic hash used only when crypto.subtle is unavailable.
+ */
+function fallbackHash(input: string): string {
+	let h1 = 0x811c9dc5;
+	let h2 = 0;
+	for (let i = 0; i < input.length; i++) {
+		const code = input.charCodeAt(i);
+		h1 ^= code;
+		h1 = Math.imul(h1, 0x01000193);
+		h2 = (h2 * 31 + code) >>> 0;
+	}
+	return 'fb' + h1.toString(16) + h2.toString(16);
 }
 
-// ==================== 工具函数 ====================
-
-/** 使用 SHA-256 对密码进行哈希 */
 async function hashPassword(password: string): Promise<string> {
-	const encoder = new TextEncoder();
-	const data = encoder.encode(password + 'obsidian-note-lock-salt-v1');
-	const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-	const hashArray = Array.from(new Uint8Array(hashBuffer));
-	return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+	const material = password + 'note-lock-salt-v1';
+	if (typeof crypto !== 'undefined' && crypto.subtle) {
+		const encoder = new TextEncoder();
+		const buffer = await crypto.subtle.digest('SHA-256', encoder.encode(material));
+		return Array.from(new Uint8Array(buffer))
+			.map((b) => b.toString(16).padStart(2, '0'))
+			.join('');
+	}
+	return fallbackHash(material);
 }
 
-// ==================== 锁定弹框 ====================
+// ==================== Lock overlay ====================
 
 class LockOverlay {
 	private overlayEl: HTMLElement | null = null;
 	private inputEl: HTMLInputElement | null = null;
 	private errorEl: HTMLElement | null = null;
-	private onUnlockSuccess: () => void;
 	private plugin: NoteLockPlugin;
+	private onUnlockSuccess: () => void;
 
 	constructor(plugin: NoteLockPlugin, onUnlockSuccess: () => void) {
 		this.plugin = plugin;
 		this.onUnlockSuccess = onUnlockSuccess;
 	}
 
-	open() {
+	private createLockIcon(container: HTMLElement): void {
+		const svgNS = 'http://www.w3.org/2000/svg';
+		const svg = document.createElementNS(svgNS, 'svg');
+		svg.setAttribute('viewBox', '0 0 24 24');
+		svg.setAttribute('fill', 'none');
+		svg.setAttribute('stroke', '#4a90d9');
+		svg.setAttribute('stroke-width', '2');
+		svg.setAttribute('stroke-linecap', 'round');
+		svg.setAttribute('stroke-linejoin', 'round');
+
+		const rect = document.createElementNS(svgNS, 'rect');
+		rect.setAttribute('x', '3');
+		rect.setAttribute('y', '11');
+		rect.setAttribute('width', '18');
+		rect.setAttribute('height', '11');
+		rect.setAttribute('rx', '2');
+		rect.setAttribute('ry', '2');
+
+		const path = document.createElementNS(svgNS, 'path');
+		path.setAttribute('d', 'M7 11V7a5 5 0 0 1 10 0v4');
+
+		svg.appendChild(rect);
+		svg.appendChild(path);
+		container.appendChild(svg);
+	}
+
+	open(): void {
 		if (this.overlayEl) return;
 
-		const overlay = document.createElement('div');
-		overlay.addClass('note-lock-overlay');
-		overlay.innerHTML = `
-			<div class="note-lock-card">
-				<div class="note-lock-icon">
-					<svg viewBox="0 0 24 24" fill="none" stroke="#4a90d9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-						<path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-					</svg>
-				</div>
-				<div class="note-lock-title">笔记已锁定</div>
-				<div class="note-lock-subtitle">输入密码以解锁查看笔记内容</div>
-				<input type="password" class="note-lock-input" placeholder="请输入密码" autocomplete="off" />
-				<div class="note-lock-error"></div>
-				<button class="note-lock-button">解 锁</button>
-			</div>
-		`;
+		const overlay = document.body.createDiv({ cls: 'note-lock-overlay' });
+		const card = overlay.createDiv({ cls: 'note-lock-card' });
 
-		this.overlayEl = overlay;
-		this.inputEl = overlay.querySelector('.note-lock-input') as HTMLInputElement;
-		this.errorEl = overlay.querySelector('.note-lock-error') as HTMLElement;
+		const iconWrap = card.createDiv({ cls: 'note-lock-icon' });
+		this.createLockIcon(iconWrap);
 
-		const button = overlay.querySelector('.note-lock-button') as HTMLButtonElement;
+		card.createDiv({ cls: 'note-lock-title', text: 'Vault is locked' });
+		card.createDiv({
+			cls: 'note-lock-subtitle',
+			text: 'Enter your password to view your notes.',
+		});
 
-		const handleUnlock = async () => {
+		const input = card.createEl('input', {
+			cls: 'note-lock-input',
+			attr: {
+				type: 'password',
+				placeholder: 'Password',
+				autocomplete: 'off',
+				spellcheck: 'false',
+			},
+		});
+
+		const error = card.createDiv({ cls: 'note-lock-error' });
+
+		const button = card.createEl('button', {
+			cls: 'note-lock-button',
+			text: 'Unlock',
+		});
+
+		const tryUnlock = async () => {
 			await this.tryUnlock();
 		};
 
-		button.addEventListener('click', handleUnlock);
-		this.inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
-			if (e.key === 'Enter') {
-				e.preventDefault();
-				handleUnlock();
+		button.addEventListener('click', tryUnlock);
+		input.addEventListener('keydown', (event: KeyboardEvent) => {
+			if (event.key === 'Enter') {
+				event.preventDefault();
+				void tryUnlock();
 			}
 		});
 
-		document.body.appendChild(overlay);
+		this.overlayEl = overlay;
+		this.inputEl = input;
+		this.errorEl = error;
 
-		// 自动聚焦输入框
-		setTimeout(() => this.inputEl?.focus(), 100);
+		setTimeout(() => input.focus(), 100);
 	}
 
-	private async tryUnlock() {
+	private async tryUnlock(): Promise<void> {
 		if (!this.inputEl || !this.errorEl) return;
 
 		const password = this.inputEl.value;
 		if (!password) {
-			this.showError('请输入密码');
+			this.showError('Please enter your password.');
 			return;
 		}
 
@@ -100,33 +150,35 @@ class LockOverlay {
 			this.close();
 			this.onUnlockSuccess();
 		} else {
-			this.showError('密码错误，请重试');
+			this.showError('Incorrect password. Please try again.');
 			this.inputEl.value = '';
 			this.inputEl.focus();
-			// 抖动效果
 			if (this.overlayEl) {
-				this.overlayEl.animate([
-					{ transform: 'translateX(0)' },
-					{ transform: 'translateX(-10px)' },
-					{ transform: 'translateX(10px)' },
-					{ transform: 'translateX(-10px)' },
-					{ transform: 'translateX(0)' },
-				], { duration: 300 });
+				this.overlayEl.animate(
+					[
+						{ transform: 'translateX(0)' },
+						{ transform: 'translateX(-10px)' },
+						{ transform: 'translateX(10px)' },
+						{ transform: 'translateX(-10px)' },
+						{ transform: 'translateX(0)' },
+					],
+					{ duration: 300 },
+				);
 			}
 		}
 	}
 
-	private showError(msg: string) {
+	private showError(message: string): void {
 		if (this.errorEl) {
-			this.errorEl.textContent = msg;
+			this.errorEl.setText(message);
 		}
 		if (this.inputEl) {
 			this.inputEl.addClass('error');
-			setTimeout(() => this.inputEl?.removeClass('error'), 1500);
+			window.setTimeout(() => this.inputEl?.removeClass('error'), 1500);
 		}
 	}
 
-	close() {
+	close(): void {
 		if (this.overlayEl) {
 			this.overlayEl.remove();
 			this.overlayEl = null;
@@ -140,174 +192,140 @@ class LockOverlay {
 	}
 }
 
-// ==================== 插件主类 ====================
+// ==================== Plugin ====================
 
 export default class NoteLockPlugin extends Plugin {
 	settings: NoteLockSettings = DEFAULT_SETTINGS;
-	private lockOverlay: LockOverlay | null = null;
+	private overlay: LockOverlay | null = null;
 	private idleTimer: number | null = null;
-	private isLocked: boolean = false;
+	private locked = false;
 
-	async onload() {
+	async onload(): Promise<void> {
 		await this.loadSettings();
 
-		// 如果已设置密码且插件启用，启动锁定
-		if (this.settings.enabled && this.settings.passwordHash) {
-			// 延迟一下，等 Obsidian 完全加载
-			setTimeout(() => {
-				this.lock();
-			}, 500);
-		}
-
-		// 添加命令：手动锁定
 		this.addCommand({
 			id: 'lock-notes',
-			name: '立即锁定笔记',
-			callback: () => this.lock(),
-		});
-
-		// 添加命令：解锁笔记
-		this.addCommand({
-			id: 'unlock-notes',
-			name: '解锁笔记',
-			callback: () => {
-				if (this.isLocked) {
-					// 已经在锁定界面，不需要重复触发
-				} else {
-					new Notice('笔记当前未锁定');
-				}
+			name: 'Lock notes',
+			checkCallback: (checking: boolean) => {
+				if (this.locked) return false;
+				if (!checking) this.lock();
+				return true;
 			},
 		});
 
-		// 设置界面
 		this.addSettingTab(new NoteLockSettingTab(this.app, this));
 
-		// 监听用户活动，重置空闲计时器
-		this.registerDomEvent(document, 'mousemove', () => this.resetIdleTimer());
-		this.registerDomEvent(document, 'keydown', () => this.resetIdleTimer());
-		this.registerDomEvent(document, 'click', () => this.resetIdleTimer());
-		this.registerDomEvent(document, 'scroll', () => this.resetIdleTimer());
-		this.registerDomEvent(document, 'touchstart', () => this.resetIdleTimer());
+		const resetIdle = () => this.resetIdleTimer();
+		this.registerDomEvent(document, 'mousemove', resetIdle);
+		this.registerDomEvent(document, 'keydown', resetIdle);
+		this.registerDomEvent(document, 'click', resetIdle);
+		this.registerDomEvent(document, 'scroll', resetIdle);
+		this.registerDomEvent(document, 'touchstart', resetIdle);
 
-		// 监听窗口失焦 / 切换标签页
-		this.registerEvent(
-			this.app.workspace.on('window-open', () => this.onWindowSwitch())
-		);
-
-		// visibilitychange 事件 - 切换屏幕 / 最小化窗口
-		document.addEventListener('visibilitychange', this.handleVisibilityChange);
-		this.register(() => {
-			document.removeEventListener('visibilitychange', this.handleVisibilityChange);
-		});
-
-		// 窗口失焦事件
+		this.registerDomEvent(document, 'visibilitychange', this.handleVisibilityChange);
 		window.addEventListener('blur', this.handleWindowBlur);
-		this.register(() => {
-			window.removeEventListener('blur', this.handleWindowBlur);
-		});
+		this.register(() => window.removeEventListener('blur', this.handleWindowBlur));
+
+		if (this.settings.enabled && this.settings.passwordHash) {
+			window.setTimeout(() => this.lock(), 500);
+		}
 	}
 
-	onunload() {
+	onunload(): void {
 		this.clearIdleTimer();
-		this.lockOverlay?.close();
+		this.overlay?.close();
+		this.overlay = null;
 	}
 
-	// ==================== 锁定 / 解锁逻辑 ====================
+	// ---------- Lock / unlock ----------
 
-	lock() {
-		if (this.isLocked) return;
+	lock(): void {
+		if (this.locked) return;
 		if (!this.settings.passwordHash) {
-			new Notice('请先在设置中设置密码');
+			new Notice('Set a password in the Note Lock settings first.');
 			return;
 		}
 
-		this.isLocked = true;
+		this.locked = true;
 		this.clearIdleTimer();
 
-		this.lockOverlay = new LockOverlay(this, () => {
-			this.isLocked = false;
-			this.lockOverlay = null;
+		this.overlay = new LockOverlay(this, () => {
+			this.locked = false;
+			this.overlay = null;
 			this.resetIdleTimer();
-			new Notice('已解锁');
+			new Notice('Unlocked.');
 		});
-		this.lockOverlay.open();
+		this.overlay.open();
 	}
 
-	unlockWithoutPassword() {
-		// 仅用于设置变更时的内部调用
-		this.isLocked = false;
-		this.lockOverlay?.close();
-		this.lockOverlay = null;
+	/** Internal cleanup used when the plugin is disabled in settings. */
+	forceUnlock(): void {
+		this.locked = false;
+		this.overlay?.close();
+		this.overlay = null;
 	}
 
-	// ==================== 空闲计时器 ====================
+	// ---------- Idle timer ----------
 
-	private resetIdleTimer() {
+	private resetIdleTimer(): void {
 		if (!this.settings.enabled || !this.settings.passwordHash) return;
-		if (this.isLocked) return; // 已锁定时不重置
+		if (this.locked) return;
 
 		this.clearIdleTimer();
-
 		if (this.settings.autoLockMinutes > 0) {
-			this.idleTimer = window.setTimeout(() => {
-				this.lock();
-			}, this.settings.autoLockMinutes * 60 * 1000);
+			this.idleTimer = window.setTimeout(
+				() => this.lock(),
+				this.settings.autoLockMinutes * 60 * 1000,
+			);
 		}
 	}
 
-	private clearIdleTimer() {
+	private clearIdleTimer(): void {
 		if (this.idleTimer !== null) {
 			window.clearTimeout(this.idleTimer);
 			this.idleTimer = null;
 		}
 	}
 
-	// ==================== 屏幕切换检测 ====================
+	// ---------- Window / screen switch ----------
 
-	private handleVisibilityChange = () => {
-		if (document.hidden) {
-			this.onScreenSwitch();
-		}
+	private handleVisibilityChange = (): void => {
+		if (document.hidden) this.onWindowSwitch();
 	};
 
-	private handleWindowBlur = () => {
-		this.onScreenSwitch();
+	private handleWindowBlur = (): void => {
+		this.onWindowSwitch();
 	};
 
-	private onWindowSwitch() {
-		this.onScreenSwitch();
-	}
-
-	private onScreenSwitch() {
-		if (!this.settings.enabled || !this.settings.lockOnScreenSwitch) return;
+	private onWindowSwitch(): void {
+		if (!this.settings.enabled || !this.settings.lockOnWindowSwitch) return;
 		if (!this.settings.passwordHash) return;
-		if (this.isLocked) return;
+		if (this.locked) return;
 
-		// 延迟一点，避免切换回来的瞬间也触发
-		setTimeout(() => {
+		window.setTimeout(() => {
 			if (document.hidden || !document.hasFocus()) {
 				this.lock();
 			}
 		}, 300);
 	}
 
-	// ==================== 设置加载 ====================
+	// ---------- Persistence ----------
 
-	async loadSettings() {
+	async loadSettings(): Promise<void> {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 	}
 
-	async saveSettings() {
+	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
 	}
 }
 
-// ==================== 设置面板 ====================
+// ==================== Settings tab ====================
 
 class NoteLockSettingTab extends PluginSettingTab {
 	plugin: NoteLockPlugin;
 
-	constructor(app: App, plugin: NoteLockPlugin) {
+	constructor(app: NoteLockPlugin['app'], plugin: NoteLockPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -316,122 +334,113 @@ class NoteLockSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		// 启用开关
 		new Setting(containerEl)
-			.setName('启用笔记加锁')
-			.setDesc('开启后，启动 Obsidian 或触发锁定条件时将显示密码锁')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.enabled)
-				.onChange(async (value) => {
+			.setName('Enable Note Lock')
+			.setDesc('Show the password screen automatically when the vault opens.')
+			.addToggle((toggle) =>
+				toggle.setValue(this.plugin.settings.enabled).onChange(async (value) => {
 					this.plugin.settings.enabled = value;
 					await this.plugin.saveSettings();
-					if (!value) {
-						this.plugin.unlockWithoutPassword();
-					}
+					if (!value) this.plugin.forceUnlock();
 					this.display();
-				}));
+				}),
+			);
 
-		// 状态显示
+		// ---------- Password ----------
+		new Setting(containerEl).setName('Password').setHeading();
+
 		const hasPassword = !!this.plugin.settings.passwordHash;
+
 		new Setting(containerEl)
-			.setName('密码状态')
-			.setDesc(hasPassword ? '已设置密码' : '尚未设置密码')
-			.addExtraButton(btn => btn
-				.setIcon(hasPassword ? 'check-circle' : 'x-circle')
-				.setTooltip(hasPassword ? '密码已配置' : '请设置密码')
-				.setDisabled(true));
+			.setName('Current status')
+			.setDesc(hasPassword ? 'A password is set.' : 'No password has been set yet.')
+			.addExtraButton((button) =>
+				button
+					.setIcon(hasPassword ? 'check-circle' : 'x-circle')
+					.setTooltip(hasPassword ? 'Password configured' : 'Set a password')
+					.setDisabled(true),
+			);
 
-		containerEl.createEl('hr', { cls: 'setting-item-separator' });
+		new Setting(containerEl)
+			.setName('Set or change password')
+			.setDesc('At least 4 characters. The password is hashed before it is stored locally.');
 
-		// 设置密码
-		const setPwdDiv = containerEl.createDiv('note-lock-set-password');
-
-		new Setting(setPwdDiv)
-			.setName('设置 / 修改密码')
-			.setDesc('输入新密码以设置或更换锁定密码');
-
-		const pwdInput1 = setPwdDiv.createEl('input', {
-			type: 'password',
-			cls: 'note-lock-input',
-			attr: { placeholder: '输入新密码' },
+		const passwordRow = containerEl.createDiv('note-lock-password-row');
+		const firstInput = passwordRow.createEl('input', {
+			cls: 'note-lock-setting-input',
+			attr: { type: 'password', placeholder: 'New password', autocomplete: 'new-password' },
+		});
+		const secondInput = passwordRow.createEl('input', {
+			cls: 'note-lock-setting-input',
+			attr: { type: 'password', placeholder: 'Confirm password', autocomplete: 'new-password' },
 		});
 
-		const pwdInput2 = setPwdDiv.createEl('input', {
-			type: 'password',
-			cls: 'note-lock-input',
-			attr: { placeholder: '确认新密码' },
+		const saveButton = passwordRow.createEl('button', {
+			cls: 'mod-cta note-lock-save-password',
+			text: 'Save password',
 		});
 
-		const savePwdBtn = setPwdDiv.createEl('button', {
-			text: '保存密码',
-			cls: 'mod-cta',
-		});
+		saveButton.addEventListener('click', async () => {
+			const first = firstInput.value;
+			const second = secondInput.value;
 
-		savePwdBtn.addEventListener('click', async () => {
-			const pwd1 = pwdInput1.value;
-			const pwd2 = pwdInput2.value;
-
-			if (!pwd1) {
-				new Notice('密码不能为空');
+			if (!first) {
+				new Notice('Password cannot be empty.');
 				return;
 			}
-			if (pwd1.length < 4) {
-				new Notice('密码至少 4 位');
+			if (first.length < 4) {
+				new Notice('Password must be at least 4 characters.');
 				return;
 			}
-			if (pwd1 !== pwd2) {
-				new Notice('两次输入的密码不一致');
+			if (first !== second) {
+				new Notice('The two passwords do not match.');
 				return;
 			}
 
-			this.plugin.settings.passwordHash = await hashPassword(pwd1);
+			this.plugin.settings.passwordHash = await hashPassword(first);
 			this.plugin.settings.enabled = true;
 			await this.plugin.saveSettings();
 
-			pwdInput1.value = '';
-			pwdInput2.value = '';
-			new Notice('密码设置成功');
+			firstInput.value = '';
+			secondInput.value = '';
+			new Notice('Password saved.');
 			this.display();
 		});
 
-		containerEl.createEl('hr', { cls: 'setting-item-separator' });
+		// ---------- Auto lock ----------
+		new Setting(containerEl).setName('Auto lock').setHeading();
 
-		// 自动锁定时间
 		new Setting(containerEl)
-			.setName('自动锁定时间')
-			.setDesc('多少分钟无操作后自动锁定笔记（设为 0 则不自动锁定）')
-			.addSlider(slider => slider
-				.setLimits(0, 60, 1)
-				.setValue(this.plugin.settings.autoLockMinutes)
-				.setDynamicTooltip()
-				.setTooltip(`${this.plugin.settings.autoLockMinutes} 分钟`)
-				.onChange(async (value) => {
-					this.plugin.settings.autoLockMinutes = value;
+			.setName('Idle lock time')
+			.setDesc('Lock automatically after this many minutes without activity. Set to 0 to disable.')
+			.addSlider((slider) =>
+				slider
+					.setLimits(0, 60, 1)
+					.setValue(this.plugin.settings.autoLockMinutes)
+					.setDynamicTooltip()
+					.setTooltip(`${this.plugin.settings.autoLockMinutes} minutes`)
+					.onChange(async (value) => {
+						this.plugin.settings.autoLockMinutes = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName('Lock when switching windows')
+			.setDesc('Lock when you switch to another window or minimize Obsidian.')
+			.addToggle((toggle) =>
+				toggle.setValue(this.plugin.settings.lockOnWindowSwitch).onChange(async (value) => {
+					this.plugin.settings.lockOnWindowSwitch = value;
 					await this.plugin.saveSettings();
-				}));
+				}),
+			);
 
-		// 屏幕切换锁定
+		// ---------- Test ----------
 		new Setting(containerEl)
-			.setName('切换屏幕后自动锁定')
-			.setDesc('切换到其他窗口 / 最小化 Obsidian 时自动锁定')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.lockOnScreenSwitch)
-				.onChange(async (value) => {
-					this.plugin.settings.lockOnScreenSwitch = value;
-					await this.plugin.saveSettings();
-				}));
-
-		containerEl.createEl('hr', { cls: 'setting-item-separator' });
-
-		// 手动锁定按钮
-		new Setting(containerEl)
-			.setName('立即测试')
-			.setDesc('点击立即锁定，测试密码锁效果')
-			.addButton(btn => btn
-				.setButtonText('立即锁定')
-				.setCta()
-				.onClick(() => {
-					this.plugin.lock();
-				}));
+			.setName('Test lock screen')
+			.setDesc('Lock the vault now to preview the password screen.')
+			.addButton((button) =>
+				button.setButtonText('Lock now').setCta().onClick(() => this.plugin.lock()),
+			);
 	}
 }

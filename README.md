@@ -1,70 +1,77 @@
-# Obsidian Note Lock
+# Note Lock
 
-为 Obsidian 笔记加锁的插件。通过全屏遮罩弹框保护笔记内容，需要输入密码才能查看。
+A lightweight Obsidian plugin that locks your vault behind a password screen. It hides your notes behind a full-screen overlay until you enter the correct password, with optional auto-lock after idle time and when you switch windows.
 
-> **注意**：本插件仅做 UI 层面的遮挡保护，不加密实际文件内容。适用于防止旁人偷看屏幕内容，不适用于对抗专业级文件窃取。
+> **Security note:** Note Lock is a visual screen lock. It does **not** encrypt your note files. It protects your notes from being seen over your shoulder or by casual viewers when you step away. It is not a replacement for full-disk encryption.
 
-## 功能特性
+![Lock screen preview](images/lock-screen.png)
 
-- 🔒 **密码锁定**：输入正确密码才能查看笔记内容
-- ⏱️ **自动锁定**：可设置 N 分钟无操作后自动锁定
-- 🖥️ **屏幕切换锁定**：切换窗口 / 最小化 Obsidian 时自动锁定
-- ⌨️ **快捷键命令**：支持手动锁定 / 解锁命令
-- ⚙️ **可视化设置**：在设置面板中配置所有选项
+## Features
 
-## 安装方法
+- **Password screen** — a full-screen overlay hides your notes until the correct password is entered.
+- **Idle auto lock** — lock automatically after a configurable number of minutes without mouse, keyboard, scroll, touch, or click activity.
+- **Window-switch auto lock** — lock when you switch to another window, minimize Obsidian, or hide the app tab.
+- **Manual lock** — lock instantly from the command palette.
+- **Local-only password** — the password is hashed (SHA-256) and stored in your local Obsidian plugin data. Nothing is sent over the network.
+- **Dark and light vault themes** — the lock screen uses a dedicated gradient backdrop.
 
-### 方式一：BRAT 安装（推荐）
+## Installation
 
-1. 安装 [BRAT](https://github.com/TfTHacker/obsidian42-brat) 插件
-2. 在 BRAT 中选择 "Add Beta plugin"
-3. 输入仓库地址：`https://github.com/sjssj/obsidian-note-lock`
-4. 安装后重启 Obsidian
+### From the community plugin browser
 
-### 方式二：手动安装
+1. Open **Settings → Community plugins**.
+2. Search for **Note Lock**.
+3. Install and enable it.
 
-1. 下载最新 release 中的 `main.js`、`manifest.json`、`styles.css`
-2. 在你的 Obsidian 仓库中创建文件夹 `.obsidian/plugins/obsidian-note-lock/`
-3. 将三个文件放入该文件夹
-4. 在 Obsidian 设置中启用插件
+### Manual installation
 
-## 使用方法
+1. Download the latest release assets: `main.js`, `manifest.json`, and `styles.css`.
+2. In your vault, create the folder `.obsidian/plugins/note-lock/`.
+3. Place the three files inside that folder.
+4. Restart Obsidian and enable **Note Lock** under **Community plugins**.
 
-### 首次使用
+## Getting started
 
-1. 进入 **设置 → Note Lock**
-2. 在「设置 / 修改密码」处输入密码（至少 4 位），点击保存
-3. 开启「启用笔记加锁」开关
+1. Open **Settings → Note Lock**.
+2. Under **Password**, enter a new password (at least 4 characters) and confirm it, then click **Save password**. The plugin enables itself automatically.
+3. Toggle **Enable Note Lock** on so the password screen appears every time the vault opens.
 
-### 自动锁定设置
+## Settings
 
-- **自动锁定时间**：拖动滑块设置 0~60 分钟无操作后自动锁定（设为 0 关闭）
-- **切换屏幕后自动锁定**：开启后，切换到其他窗口或最小化 Obsidian 时自动锁定
+| Setting | Description |
+| --- | --- |
+| Enable Note Lock | Show the password screen automatically when the vault opens. |
+| Set or change password | Replace the existing password. The old password is not required to change it inside Obsidian. |
+| Idle lock time | Minutes without activity before the vault locks. `0` disables idle auto lock. |
+| Lock when switching windows | Lock when you switch to another window or minimize Obsidian. |
 
-### 手动锁定
+## Commands
 
-- 按 `Ctrl+P` 打开命令面板
-- 输入 "立即锁定笔记" 并执行
+| Command | Description |
+| --- | --- |
+| **Note Lock: Lock notes** | Lock the vault immediately. |
 
-## 隐私说明
+## Privacy and network use
 
-- 密码通过 **SHA-256** 哈希后存储在 Obsidian 的本地数据中，不会明文保存
-- 插件不会上传任何数据到网络
-- 卸载插件时，存储的密码数据会随插件数据一同清除
+- The plugin stores only the **hash** of your password locally; the plain-text password is never saved.
+- It makes **no network requests**, includes no telemetry, and does not access files outside your vault.
+- Uninstalling the plugin removes its stored data together with the plugin.
 
-## 开发
+## Development
 
 ```bash
-# 安装依赖
+# Install dependencies
 npm install
 
-# 开发模式（监听变化）
+# Watch for changes during development
 npm run dev
 
-# 构建生产版本
+# Build the production bundle
 npm run build
 ```
 
+The compiled output is `main.js`. New releases are built and attached automatically by the GitHub Actions workflow when a version tag is pushed.
+
 ## License
 
-MIT
+[MIT](LICENSE)
