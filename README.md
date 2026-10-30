@@ -4,8 +4,6 @@ A lightweight Obsidian plugin that locks your vault behind a password screen. It
 
 > **Security note:** Note Lock is a visual screen lock. It does **not** encrypt your note files. It protects your notes from being seen over your shoulder or by casual viewers when you step away. It is not a replacement for full-disk encryption.
 
-![Lock screen preview](images/lock-screen.png)
-
 ## Features
 
 - **Password screen** — a full-screen overlay hides your notes until the correct password is entered.
@@ -13,7 +11,7 @@ A lightweight Obsidian plugin that locks your vault behind a password screen. It
 - **Window-switch auto lock** — lock when you switch to another window, minimize Obsidian, or hide the app tab.
 - **Manual lock** — lock instantly from the command palette.
 - **Local-only password** — the password is hashed (SHA-256) and stored in your local Obsidian plugin data. Nothing is sent over the network.
-- **Dark and light vault themes** — the lock screen uses a dedicated gradient backdrop.
+- **Keyboard friendly** — press `Enter` on the lock screen to unlock.
 
 ## Installation
 
